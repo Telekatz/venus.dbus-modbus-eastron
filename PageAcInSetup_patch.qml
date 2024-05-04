@@ -9,4 +9,16 @@
 				MbOption { description: "L3"; value: 2 }
 			]
 		}
+	MbSpinBox {
+		description: qsTr("Refresh Rate")
+		show: productId == 0xb023 && item.valid
+		item {
+			bind: Utils.path(root.bindPrefix, "/RefreshRate")
+			unit: "Hz"
+			decimals: 0
+			step: 1
+			max: 10
+			min: 1
+		}
+	}
 /* Eastron settings end */

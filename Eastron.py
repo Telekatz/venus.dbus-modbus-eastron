@@ -23,6 +23,7 @@ phase_configs = [
     '3p4w',
 ]
 
+MAXREFRESHRATE = 10
 
 class ModbusDeviceEastron():
 
@@ -103,6 +104,12 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.phase_item = self.settings.addSetting(
                 self.settings_path + '/Phase', 0, 0, 2,
                 callback=self.phase_setting_changed)
+        
+        self.interval_item = self.settings.addSetting(
+                self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
+                callback=self.refresh_setting_changed)
+        
+        self.age_limit_fast = 1 / self.interval_item.get_value()
 
     def phase_setting_changed(self, service, path, value):
         if self.phase != value['Value']:
@@ -110,11 +117,19 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             self.sched_reinit()
         return
 
+    def refresh_setting_changed(self, service, path, value):
+        if self.age_limit_fast != 1 / value['Value']:
+            self.sched_reinit()
+        return
+    
     def device_init_late(self):
         super().device_init_late()
         self.dbus.add_path('/Phase', self.phase_item.get_value(),
                     writeable=True,
                     onchangecallback=self.phase_changed)
+        self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
+                    writeable=True,
+                    onchangecallback=self.interval_changed)
         if self.phase != self.phase_item.get_value():
             self.phase = self.phase_item.get_value()
             self.reinit()
@@ -125,6 +140,14 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.phase_item.set_value(val)
         if self.phase != val:
             self.phase = val
+            self.sched_reinit()
+        return True
+    
+    def interval_changed(self, path, val):
+        if not 1 <= val <= MAXREFRESHRATE:
+            return False
+        self.interval_item.set_value(val)
+        if self.age_limit_fast != 1/val:
             self.sched_reinit()
         return True
 
@@ -170,6 +193,20 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.last_time = time.time()
         self.last_power = 0
 
+    def init_device_settings(self, dbus):
+        super().init_device_settings(dbus)
+        
+        self.interval_item = self.settings.addSetting(
+                self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
+                callback=self.refresh_setting_changed)
+        
+        self.age_limit_fast = 1 / self.interval_item.get_value()
+
+    def refresh_setting_changed(self, service, path, value):
+        if self.age_limit_fast != 1 / value['Value']:
+            self.sched_reinit()
+        return
+    
     def power_balance(self, reg):
         deltaT =  time.time() - self.last_time
         if (self.last_power > 0):
@@ -184,6 +221,17 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.dbus.add_path('/Ac/Energy/ForwardBalancing', 0, writeable=True)
         self.dbus.add_path('/Ac/Energy/ReverseBalancing', 0, writeable=True)
         self.last_time = time.time()
+        self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
+                    writeable=True,
+                    onchangecallback=self.interval_changed)
+
+    def interval_changed(self, path, val):
+        if not 1 <= val <= MAXREFRESHRATE:
+            return False
+        self.interval_item.set_value(val)
+        if self.age_limit_fast != 1/val:
+            self.sched_reinit()
+        return True
 
 
 class Eastron_SDM72DM(Eastron_3phase):
