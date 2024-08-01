@@ -150,10 +150,16 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         if self.age_limit_fast != 1/val:
             self.sched_reinit()
         return True
+        
+
+    
+    
+# Register list for the SDM72 V2 see https://github.com/reaper7/SDM_Energy_Meter/blob/master/SDM.h#L104
 
 class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter):
     last_time = 0
     last_power = 0
+
 
     def phase_regs(self, n):
         s = 2 * (n - 1)
@@ -181,8 +187,17 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             Reg_f32b(0x0034, '/Ac/Power',          1, '%.1f W', onchange=self.power_balance),
             Reg_f32b(0x0030, '/Ac/Current',        1, '%.1f A'),
             Reg_f32b(0x0046, '/Ac/Frequency',      1, '%.1f Hz'),
-            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
-            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
+            Reg_f32b(0x018C, '/Ac/Energy/Forward', 1, '%.1f kWh'),     # export minus import
+            Reg_f32b(0x018C, '/Ac/Energy/Reverse', -1, '%.1f kWh'),    # export minus import (negative)
+            Reg_f32b(0x018C, '/Ac/L1/Energy/Forward', 3, '%.1f kWh'),  # export minus import
+            Reg_f32b(0x018C, '/Ac/L1/Energy/Reverse', -3, '%.1f kWh'), # export minus import (negative)
+            Reg_f32b(0x018C, '/Ac/L2/Energy/Forward', 3, '%.1f kWh'),  # export minus import
+            Reg_f32b(0x018C, '/Ac/L2/Energy/Reverse', -3, '%.1f kWh'), # export minus import (negative)
+            Reg_f32b(0x018C, '/Ac/L3/Energy/Forward', 3, '%.1f kWh'),  # export minus import
+            Reg_f32b(0x018C, '/Ac/L3/Energy/Reverse', -3, '%.1f kWh'), # export minus import (negative)
+            #Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),    
+            #Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
+            # Commented out because of wrong phase salding statistics in 1-phase systems, see https://community.victronenergy.com/questions/121094/historical-data-in-vrm-portal-statistics-are-incor.html
         ]
 
         for n in range(1, phases + 1):
