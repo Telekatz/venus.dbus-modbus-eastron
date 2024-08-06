@@ -4,7 +4,6 @@ import time
 import device
 import probe
 from register import *
-import time
 from settingsdevice import SettingsDevice
 
 log = logging.getLogger()
@@ -14,7 +13,7 @@ class Reg_f32b(Reg_num):
     count = 2
     rtype = float
 
-nr_phases = [ 0, 1, 3, 3 ]
+nr_phases = [0, 1, 3, 3]
 
 phase_configs = [
     'undefined',
@@ -64,7 +63,7 @@ class ModbusDeviceEastron():
         self.sched_reinit()
 
 
-class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter):
+class Eastron_1phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter):
     phase = 0
 
     def phase_regs(self, n):
@@ -79,8 +78,8 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
     def device_init(self):
         self.info_regs = [
             Reg_u32b(0xfc00, '/Serial'),
-            Reg_u16 (0xfc02, '/HardwareVersion'),
-            Reg_u16 (0xfc03, '/FirmwareVersion'),
+            Reg_u16(0xfc02, '/HardwareVersion'),
+            Reg_u16(0xfc03, '/FirmwareVersion'),
         ]
 
         self.read_info()
@@ -93,22 +92,22 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
         ]
 
-        regs += self.phase_regs(self.phase+1)
+        regs += self.phase_regs(self.phase + 1)
 
         self.data_regs = regs
-        self.nr_phases = self.phase+1
-    
+        self.nr_phases = self.phase + 1
+
     def init_device_settings(self, dbus):
         super().init_device_settings(dbus)
-        
+
         self.phase_item = self.settings.addSetting(
-                self.settings_path + '/Phase', 0, 0, 2,
-                callback=self.phase_setting_changed)
-        
+            self.settings_path + '/Phase', 0, 0, 2,
+            callback=self.phase_setting_changed)
+
         self.interval_item = self.settings.addSetting(
-                self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
-                callback=self.refresh_setting_changed)
-        
+            self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
+            callback=self.refresh_setting_changed)
+
         self.age_limit_fast = 1 / self.interval_item.get_value()
 
     def phase_setting_changed(self, service, path, value):
@@ -121,15 +120,15 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         if self.age_limit_fast != 1 / value['Value']:
             self.sched_reinit()
         return
-    
+
     def device_init_late(self):
         super().device_init_late()
         self.dbus.add_path('/Phase', self.phase_item.get_value(),
-                    writeable=True,
-                    onchangecallback=self.phase_changed)
+                           writeable=True,
+                           onchangecallback=self.phase_changed)
         self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
-                    writeable=True,
-                    onchangecallback=self.interval_changed)
+                           writeable=True,
+                           onchangecallback=self.interval_changed)
         if self.phase != self.phase_item.get_value():
             self.phase = self.phase_item.get_value()
             self.reinit()
@@ -142,24 +141,19 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             self.phase = val
             self.sched_reinit()
         return True
-    
+
     def interval_changed(self, path, val):
         if not 1 <= val <= MAXREFRESHRATE:
             return False
         self.interval_item.set_value(val)
-        if self.age_limit_fast != 1/val:
+        if self.age_limit_fast != 1 / val:
             self.sched_reinit()
         return True
-        
 
-    
-    
-# Register list for the SDM72 V2 see https://github.com/reaper7/SDM_Energy_Meter/blob/master/SDM.h#L104
 
-class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter):
+class Eastron_3phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter):
     last_time = 0
     last_power = 0
-
 
     def phase_regs(self, n):
         s = 2 * (n - 1)
@@ -174,8 +168,8 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
     def device_init(self):
         self.info_regs = [
             Reg_u32b(0xfc00, '/Serial'),
-            Reg_u16 (0xfc02, '/HardwareVersion'),
-            Reg_u16 (0xfc03, '/FirmwareVersion'),
+            Reg_u16(0xfc02, '/HardwareVersion'),
+            Reg_u16(0xfc03, '/FirmwareVersion'),
             Reg_f32b(0x000a, '/PhaseConfig', text=phase_configs, write=(0, 3)),
         ]
 
@@ -184,11 +178,11 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         phases = nr_phases[int(self.info['/PhaseConfig'])]
 
         regs = [
-            Reg_f32b(0x0034, '/Ac/Power',          1, '%.1f W', onchange=self.power_balance),
-            Reg_f32b(0x0030, '/Ac/Current',        1, '%.1f A'),
-            Reg_f32b(0x0046, '/Ac/Frequency',      1, '%.1f Hz'),
-            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),    
-            Reg_f32b(0x004a, '/Ac/Energy/Reverse', -1, '%.1f kWh'), #Victron is expecting negative for reverse at VRM portal .
+            Reg_f32b(0x0034, '/Ac/Power', 1, '%.1f W', onchange=self.power_balance),
+            Reg_f32b(0x0030, '/Ac/Current', 1, '%.1f A'),
+            Reg_f32b(0x0046, '/Ac/Frequency', 1, '%.1f Hz'),
+            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
+            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
         ]
 
         for n in range(1, phases + 1):
@@ -201,24 +195,26 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
 
     def init_device_settings(self, dbus):
         super().init_device_settings(dbus)
-        
+
         self.interval_item = self.settings.addSetting(
-                self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
-                callback=self.refresh_setting_changed)
-        
+            self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
+            callback=self.refresh_setting_changed)
+
         self.age_limit_fast = 1 / self.interval_item.get_value()
 
     def refresh_setting_changed(self, service, path, value):
         if self.age_limit_fast != 1 / value['Value']:
             self.sched_reinit()
         return
-    
+
     def power_balance(self, reg):
-        deltaT =  time.time() - self.last_time
-        if (self.last_power > 0):
-            self.dbus['/Ac/Energy/ForwardBalancing'] = float(self.dbus['/Ac/Energy/ForwardBalancing']) + (self.last_power * deltaT)/3600000
+        deltaT = time.time() - self.last_time
+        if self.last_power > 0:
+            self.dbus['/Ac/Energy/ForwardBalancing'] = float(self.dbus['/Ac/Energy/ForwardBalancing']) + (
+                        self.last_power * deltaT) / 3600000
         else:
-            self.dbus['/Ac/Energy/ReverseBalancing'] = float(self.dbus['/Ac/Energy/ReverseBalancing']) + (abs(self.last_power) * deltaT)/3600000
+            self.dbus['/Ac/Energy/ReverseBalancing'] = float(self.dbus['/Ac/Energy/ReverseBalancing']) + (
+                        abs(self.last_power) * deltaT) / 3600000
         self.last_time = time.time()
         self.last_power = float(copy(reg)) if reg.isvalid() else 0
 
@@ -228,78 +224,77 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.dbus.add_path('/Ac/Energy/ReverseBalancing', 0, writeable=True)
         self.last_time = time.time()
         self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
-                    writeable=True,
-                    onchangecallback=self.interval_changed)
+                           writeable=True,
+                           onchangecallback=self.interval_changed)
 
     def interval_changed(self, path, val):
         if not 1 <= val <= MAXREFRESHRATE:
             return False
         self.interval_item.set_value(val)
-        if self.age_limit_fast != 1/val:
+        if self.age_limit_fast != 1 / val:
             self.sched_reinit()
         return True
 
 
 class Eastron_SDM72DM(Eastron_3phase):
-    productid = 0xb023 # id assigned by Victron Support
+    productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM72D-M'
     min_timeout = 0.5
 
 class Eastron_SDM72DM2(Eastron_3phase):
-    productid = 0xb023 # id assigned by Victron Support
+    productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM72D-M-2'
     min_timeout = 0.5
 
 class Eastron_SDM120M(Eastron_1phase):
-    productid = 0xb023 # id assigned by Victron Support
+    productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM120-M'
     min_timeout = 0.5
 
 class Eastron_SDM230M(Eastron_1phase):
-    productid = 0xb023 # id assigned by Victron Support
+    productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM230-Modbus'
     min_timeout = 0.5
 
 class Eastron_SDM630M(Eastron_3phase):
-    productid = 0xb023 # id assigned by Victron Support
+    productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM630-Modbus'
     min_timeout = 0.5
 
 class Eastron_SDM630MCT(Eastron_3phase):
-    productid = 0xb023 # id assigned by Victron Support
+    productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM630-MCT'
     min_timeout = 0.5
 
 
 models = {
     132: {
-        'model':    'SDM72DM',
-        'handler':  Eastron_SDM72DM,
+        'model': 'SDM72DM',
+        'handler': Eastron_SDM72DM,
     },
     137: {
-        'model':    'SDM72DM2',
-        'handler':  Eastron_SDM72DM2,
+        'model': 'SDM72DM2',
+        'handler': Eastron_SDM72DM2,
     },
     32: {
-        'model':    'SDM120M',
-        'handler':  Eastron_SDM120M,
+        'model': 'SDM120M',
+        'handler': Eastron_SDM120M,
     },
     43: {
-        'model':    'SDM230Modbus',
-        'handler':  Eastron_SDM230M,
+        'model': 'SDM230Modbus',
+        'handler': Eastron_SDM230M,
     },
     112: {
-        'model':    'SDM630Modbus',
-        'handler':  Eastron_SDM630M,
+        'model': 'SDM630Modbus',
+        'handler': Eastron_SDM630M,
     },
     121: {
-        'model':    'SDM630MCT',
-        'handler':  Eastron_SDM630MCT,
+        'model': 'SDM630MCT',
+        'handler': Eastron_SDM630MCT,
     },
 }
 
-
 probe.add_handler(probe.ModelRegister(Reg_u16(0xfc02), models,
-                                      methods=['rtu','tcp'],
+                                      methods=['rtu', 'tcp'],
                                       rates=[9600, 19200, 38400],
-                                      units=[1,2]))
+                                      units=[1, 2]))
