@@ -63,7 +63,7 @@ class ModbusDeviceEastron():
         reverse_energy = self.get_register_value(rr.registers, 0x004a, start, True)
         
         if forward_energy is not None and reverse_energy is not None:
-            forward_result = round(forward_energy - reverse_energy, 3)
+            forward_result = round(forward_energy - reverse_energy, 4)
             d['/Ac/Energy/Forward'] = forward_result
             d['/Ac/Energy/Reverse'] = -forward_result
 
