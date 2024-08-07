@@ -53,7 +53,7 @@ class ModbusDeviceEastron():
                     d[reg.name] = copy(reg) if reg.isvalid() else None
                 reg.time = now
 
-        # Update the energy registers based on the calculated difference of 0x0048 and 0x004a
+        # Update the energy registers based on the calculated difference
         self.process_energy_difference(rr, d, start)
 
         return latency
@@ -63,9 +63,9 @@ class ModbusDeviceEastron():
         reverse_energy = self.get_register_value(rr.registers, 0x004a, start, True)
         
         if forward_energy is not None and reverse_energy is not None:
-            forward_result = forward_energy - reverse_energy
-            d['/Ac/Energy/Forward'] = f'{forward_result:.3f} kWh'
-            d['/Ac/Energy/Reverse'] = f'{-forward_result:.3f} kWh'
+            forward_result = round(forward_energy - reverse_energy, 3)
+            d['/Ac/Energy/Forward'] = forward_result
+            d['/Ac/Energy/Reverse'] = -forward_result
 
     def get_register_value(self, registers, base, start, is_float=False):
         index = base - start
