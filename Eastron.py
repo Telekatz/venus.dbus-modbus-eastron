@@ -53,7 +53,33 @@ class ModbusDeviceEastron():
                     d[reg.name] = copy(reg) if reg.isvalid() else None
                 reg.time = now
 
+        # Update the energy registers based on the calculated difference of 0x0048 and 0x004a
+        self.process_energy_difference(rr, d, start)
+
         return latency
+
+    def process_energy_difference(self, rr, d, start):
+        forward_energy = self.get_register_value(rr.registers, 0x0048, start, True)
+        reverse_energy = self.get_register_value(rr.registers, 0x004a, start, True)
+        
+        if forward_energy is not None and reverse_energy is not None:
+            forward_result = forward_energy - reverse_energy
+            d['/Ac/Energy/Forward'] = f'{forward_result:.3f} kWh'
+            d['/Ac/Energy/Reverse'] = f'{-forward_result:.3f} kWh'
+
+    def get_register_value(self, registers, base, start, is_float=False):
+        index = base - start
+        if 0 <= index < len(registers):
+            if is_float:
+                raw_value = (registers[index] << 16) + registers[index + 1]
+                return self.unpack_float(raw_value)
+            else:
+                return registers[index]
+        return None
+
+    def unpack_float(self, raw_value):
+        import struct
+        return struct.unpack('>f', struct.pack('>I', raw_value))[0]
 
     def get_ident(self):
         return 'ea_%s' % self.info['/Serial']
@@ -62,15 +88,14 @@ class ModbusDeviceEastron():
         super().dbus_write_register(reg, path, val)
         self.sched_reinit()
 
-
 class Eastron_1phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter):
     phase = 0
 
     def phase_regs(self, n):
         return [
-            Reg_f32b(0x0000, '/Ac/L%d/Voltage' % n,        1, '%.1f V'),
-            Reg_f32b(0x0006, '/Ac/L%d/Current' % n,        1, '%.1f A'),
-            Reg_f32b(0x000c, '/Ac/L%d/Power' % n,          1, '%.1f W'),
+            Reg_f32b(0x0000, '/Ac/L%d/Voltage' % n, 1, '%.1f V'),
+            Reg_f32b(0x0006, '/Ac/L%d/Current' % n, 1, '%.1f A'),
+            Reg_f32b(0x000c, '/Ac/L%d/Power' % n, 1, '%.1f W'),
             Reg_f32b(0x0048, '/Ac/L%d/Energy/Forward' % n, 1, '%.1f kWh'),
             Reg_f32b(0x004a, '/Ac/L%d/Energy/Reverse' % n, 1, '%.1f kWh'),
         ]
@@ -85,9 +110,9 @@ class Eastron_1phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter)
         self.read_info()
 
         regs = [
-            Reg_f32b(0x000c, '/Ac/Power',          1, '%.1f W'),
-            Reg_f32b(0x0006, '/Ac/Current',        1, '%.1f A'),
-            Reg_f32b(0x0046, '/Ac/Frequency',      1, '%.1f Hz'),
+            Reg_f32b(0x000c, '/Ac/Power', 1, '%.1f W'),
+            Reg_f32b(0x0006, '/Ac/Current', 1, '%.1f A'),
+            Reg_f32b(0x0046, '/Ac/Frequency', 1, '%.1f Hz'),
             Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
             Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
         ]
@@ -150,7 +175,6 @@ class Eastron_1phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter)
             self.sched_reinit()
         return True
 
-
 class Eastron_3phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter):
     last_time = 0
     last_power = 0
@@ -158,9 +182,9 @@ class Eastron_3phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter)
     def phase_regs(self, n):
         s = 2 * (n - 1)
         return [
-            Reg_f32b(0x0000 + s, '/Ac/L%d/Voltage' % n,        1, '%.1f V'),
-            Reg_f32b(0x0006 + s, '/Ac/L%d/Current' % n,        1, '%.1f A'),
-            Reg_f32b(0x000c + s, '/Ac/L%d/Power' % n,          1, '%.1f W'),
+            Reg_f32b(0x0000 + s, '/Ac/L%d/Voltage' % n, 1, '%.1f V'),
+            Reg_f32b(0x0006 + s, '/Ac/L%d/Current' % n, 1, '%.1f A'),
+            Reg_f32b(0x000c + s, '/Ac/L%d/Power' % n, 1, '%.1f W'),
             Reg_f32b(0x015a + s, '/Ac/L%d/Energy/Forward' % n, 1, '%.1f kWh'),
             Reg_f32b(0x0160 + s, '/Ac/L%d/Energy/Reverse' % n, 1, '%.1f kWh'),
         ]
@@ -209,12 +233,12 @@ class Eastron_3phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter)
 
     def power_balance(self, reg):
         deltaT = time.time() - self.last_time
-        if self.last_power > 0:
-            self.dbus['/Ac/Energy/ForwardBalancing'] = float(self.dbus['/Ac/Energy/ForwardBalancing']) + (
-                        self.last_power * deltaT) / 3600000
+        if (self.last_power > 0):
+            self.dbus['/Ac/Energy/ForwardBalancing'] = float(
+                self.dbus['/Ac/Energy/ForwardBalancing']) + (self.last_power * deltaT) / 3600000
         else:
-            self.dbus['/Ac/Energy/ReverseBalancing'] = float(self.dbus['/Ac/Energy/ReverseBalancing']) + (
-                        abs(self.last_power) * deltaT) / 3600000
+            self.dbus['/Ac/Energy/ReverseBalancing'] = float(
+                self.dbus['/Ac/Energy/ReverseBalancing']) + (abs(self.last_power) * deltaT) / 3600000
         self.last_time = time.time()
         self.last_power = float(copy(reg)) if reg.isvalid() else 0
 
@@ -241,25 +265,30 @@ class Eastron_SDM72DM(Eastron_3phase):
     productname = 'Eastron SDM72D-M'
     min_timeout = 0.5
 
+
 class Eastron_SDM72DM2(Eastron_3phase):
     productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM72D-M-2'
     min_timeout = 0.5
+
 
 class Eastron_SDM120M(Eastron_1phase):
     productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM120-M'
     min_timeout = 0.5
 
+
 class Eastron_SDM230M(Eastron_1phase):
     productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM230-Modbus'
     min_timeout = 0.5
 
+
 class Eastron_SDM630M(Eastron_3phase):
     productid = 0xb023  # id assigned by Victron Support
     productname = 'Eastron SDM630-Modbus'
     min_timeout = 0.5
+
 
 class Eastron_SDM630MCT(Eastron_3phase):
     productid = 0xb023  # id assigned by Victron Support
