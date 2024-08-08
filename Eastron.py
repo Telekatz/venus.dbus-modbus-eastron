@@ -63,7 +63,7 @@ class ModbusDeviceEastron():
         reverse_energy = self.get_register_value(rr.registers, 0x004a, start, True)
         
         if forward_energy is not None and reverse_energy is not None:
-            forward_result = round(forward_energy - reverse_energy, 4)
+            forward_result = round(forward_energy - reverse_energy, 5)
             d['/Ac/Energy/Forward'] = forward_result
             d['/Ac/Energy/Reverse'] = -forward_result
 
@@ -113,8 +113,8 @@ class Eastron_1phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter)
             Reg_f32b(0x000c, '/Ac/Power', 1, '%.1f W'),
             Reg_f32b(0x0006, '/Ac/Current', 1, '%.1f A'),
             Reg_f32b(0x0046, '/Ac/Frequency', 1, '%.1f Hz'),
-            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
-            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
+            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.5f kWh'),
+            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.5f kWh'),
         ]
 
         regs += self.phase_regs(self.phase + 1)
@@ -205,8 +205,8 @@ class Eastron_3phase(ModbusDeviceEastron, device.CustomName, device.EnergyMeter)
             Reg_f32b(0x0034, '/Ac/Power', 1, '%.1f W', onchange=self.power_balance),
             Reg_f32b(0x0030, '/Ac/Current', 1, '%.1f A'),
             Reg_f32b(0x0046, '/Ac/Frequency', 1, '%.1f Hz'),
-            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
-            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
+            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.5f kWh'),
+            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.5f kWh'),
         ]
 
         for n in range(1, phases + 1):
