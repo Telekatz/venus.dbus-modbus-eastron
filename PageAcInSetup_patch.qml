@@ -21,4 +21,16 @@
 			min: 1
 		}
 	}
+	MbItemOptions {
+		show: productId == 0xb023 && item.valid
+		description: qsTr("Energy Counter Source")
+		bind: Utils.path(root.bindPrefix, "/EnergyCounter")
+		readonly: false
+		editable: true
+		possibleValues:[
+			MbOption{description: qsTr("Device Value"); value: 0 },
+			MbOption{description: qsTr("Balancing"); value: 1 },
+			MbOption{description: qsTr("Import - Export"); value: 2 }
+		]
+	}
 /* Eastron settings end */

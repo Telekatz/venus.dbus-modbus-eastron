@@ -23,10 +23,32 @@ phase_configs = [
     '3p4w',
 ]
 
+_kwh = lambda v: (str(round(v, 3)) + ' kWh')
+_kwh2 = lambda p, v: (str(round(v, 3)) + ' kWh')
+_a = lambda v: (str(round(v, 1)) + 'A')
+_w = lambda v: (str(round(v, 1)) + 'W')
+_v = lambda v: (str(round(v, 1)) + 'V')
+_hz = lambda v: (str(round(v, 1)) + 'Hz')
+
 MAXREFRESHRATE = 10
 
 class ModbusDeviceEastron():
 
+    def init_device_settings(self, dbus):
+        super().init_device_settings(dbus)
+        
+        self.interval_item = self.settings.addSetting(
+            self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
+            callback=self.refresh_setting_changed)
+        
+        self.age_limit_fast = 1 / self.interval_item.get_value()
+
+    def device_init_late(self):
+        super().device_init_late()
+        self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
+            writeable=True,
+            onchangecallback=self.interval_changed)
+        
     def read_data_regs(self, regs, d):
         now = time.time()
 
@@ -53,6 +75,8 @@ class ModbusDeviceEastron():
                 if reg.decode(rr.registers[base:end]):
                     d[reg.name] = copy(reg) if reg.isvalid() else None
                 reg.time = now
+        
+        self.update_energy()
 
         return latency
 
@@ -63,17 +87,30 @@ class ModbusDeviceEastron():
         super().dbus_write_register(reg, path, val)
         self.sched_reinit()
 
+    def interval_changed(self, path, val):
+        if not 1 <= val <= MAXREFRESHRATE:
+            return False
+        self.interval_item.set_value(val)
+        if self.age_limit_fast != 1/val:
+            self.sched_reinit()
+        return True
+    
+    def refresh_setting_changed(self, service, path, value):
+        if self.age_limit_fast != 1 / value['Value']:
+            self.sched_reinit()
+        return
+
 
 class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter):
     phase = 0
 
     def phase_regs(self, n):
         return [
-            Reg_f32b(0x0000, '/Ac/L%d/Voltage' % n,        1, '%.1f V'),
-            Reg_f32b(0x0006, '/Ac/L%d/Current' % n,        1, '%.1f A'),
-            Reg_f32b(0x000c, '/Ac/L%d/Power' % n,          1, '%.1f W'),
-            Reg_f32b(0x0048, '/Ac/L%d/Energy/Forward' % n, 1, '%.1f kWh'),
-            Reg_f32b(0x004a, '/Ac/L%d/Energy/Reverse' % n, 1, '%.1f kWh'),
+            Reg_f32b(0x0000, '/Ac/L%d/Voltage' % n,        1, _v),
+            Reg_f32b(0x0006, '/Ac/L%d/Current' % n,        1, _a),
+            Reg_f32b(0x000c, '/Ac/L%d/Power' % n,          1, _w),
+            Reg_f32b(0x0048, '/Ac/L%d/Energy/Forward' % n, 1, _kwh),
+            Reg_f32b(0x004a, '/Ac/L%d/Energy/Reverse' % n, 1, _kwh),
         ]
 
     def device_init(self):
@@ -86,54 +123,39 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.read_info()
 
         regs = [
-            Reg_f32b(0x000c, '/Ac/Power',          1, '%.1f W'),
-            Reg_f32b(0x0006, '/Ac/Current',        1, '%.1f A'),
-            Reg_f32b(0x0046, '/Ac/Frequency',      1, '%.1f Hz'),
-            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
-            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
+            Reg_f32b(0x000c, '/Ac/Power',          1, _w),
+            Reg_f32b(0x0006, '/Ac/Current',        1, _a),
+            Reg_f32b(0x0046, '/Ac/Frequency',      1, _hz),
+            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, _kwh),
+            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, _kwh),
         ]
 
         regs += self.phase_regs(self.phase+1)
 
         self.data_regs = regs
         self.nr_phases = self.phase+1
-    
+   
+    def device_init_late(self):
+        super().device_init_late()
+        self.dbus.add_path('/Phase', self.phase_item.get_value(),
+            writeable=True,
+            onchangecallback=self.phase_changed)
+        if self.phase != self.phase_item.get_value():
+            self.phase = self.phase_item.get_value()
+            self.reinit()
+
     def init_device_settings(self, dbus):
         super().init_device_settings(dbus)
-        
         self.phase_item = self.settings.addSetting(
-                self.settings_path + '/Phase', 0, 0, 2,
-                callback=self.phase_setting_changed)
+            self.settings_path + '/Phase', 0, 0, 2,
+            callback=self.phase_setting_changed)
         
-        self.interval_item = self.settings.addSetting(
-                self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
-                callback=self.refresh_setting_changed)
-        
-        self.age_limit_fast = 1 / self.interval_item.get_value()
-
     def phase_setting_changed(self, service, path, value):
         if self.phase != value['Value']:
             self.phase = value['Value']
             self.sched_reinit()
         return
-
-    def refresh_setting_changed(self, service, path, value):
-        if self.age_limit_fast != 1 / value['Value']:
-            self.sched_reinit()
-        return
     
-    def device_init_late(self):
-        super().device_init_late()
-        self.dbus.add_path('/Phase', self.phase_item.get_value(),
-                    writeable=True,
-                    onchangecallback=self.phase_changed)
-        self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
-                    writeable=True,
-                    onchangecallback=self.interval_changed)
-        if self.phase != self.phase_item.get_value():
-            self.phase = self.phase_item.get_value()
-            self.reinit()
-
     def phase_changed(self, path, val):
         if not 0 <= val <= 2:
             return False
@@ -143,26 +165,22 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             self.sched_reinit()
         return True
     
-    def interval_changed(self, path, val):
-        if not 1 <= val <= MAXREFRESHRATE:
-            return False
-        self.interval_item.set_value(val)
-        if self.age_limit_fast != 1/val:
-            self.sched_reinit()
-        return True
+    def update_energy(self):
+        pass
+
 
 class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter):
-    last_time = 0
-    last_power = 0
+    deviceEnergyForward = None
+    deviceEnergyReverse = None
 
     def phase_regs(self, n):
         s = 2 * (n - 1)
         return [
-            Reg_f32b(0x0000 + s, '/Ac/L%d/Voltage' % n,        1, '%.1f V'),
-            Reg_f32b(0x0006 + s, '/Ac/L%d/Current' % n,        1, '%.1f A'),
-            Reg_f32b(0x000c + s, '/Ac/L%d/Power' % n,          1, '%.1f W'),
-            Reg_f32b(0x015a + s, '/Ac/L%d/Energy/Forward' % n, 1, '%.1f kWh'),
-            Reg_f32b(0x0160 + s, '/Ac/L%d/Energy/Reverse' % n, 1, '%.1f kWh'),
+            Reg_f32b(0x0000 + s, '/Ac/L%d/Voltage' % n,        1, _v),
+            Reg_f32b(0x0006 + s, '/Ac/L%d/Current' % n,        1, _a),
+            Reg_f32b(0x000c + s, '/Ac/L%d/Power' % n,          1, _w),
+            Reg_f32b(0x015a + s, '/Ac/L%d/Energy/Forward' % n, 1, _kwh),
+            Reg_f32b(0x0160 + s, '/Ac/L%d/Energy/Reverse' % n, 1, _kwh),
         ]
 
     def device_init(self):
@@ -178,11 +196,11 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         phases = nr_phases[int(self.info['/PhaseConfig'])]
 
         regs = [
-            Reg_f32b(0x0034, '/Ac/Power',          1, '%.1f W', onchange=self.power_balance),
-            Reg_f32b(0x0030, '/Ac/Current',        1, '%.1f A'),
-            Reg_f32b(0x0046, '/Ac/Frequency',      1, '%.1f Hz'),
-            Reg_f32b(0x0048, '/Ac/Energy/Forward', 1, '%.1f kWh'),
-            Reg_f32b(0x004a, '/Ac/Energy/Reverse', 1, '%.1f kWh'),
+            Reg_f32b(0x0034, '/Ac/Power',             1, _w, onchange=self.power_balance),
+            Reg_f32b(0x0030, '/Ac/Current',           1, _a),
+            Reg_f32b(0x0046, '/Ac/Frequency',         1, _hz),
+            Reg_f32b(0x0048, '/Ac/Energy/ForwardSum', 1, _kwh, onchange=self.deviceEnergyForward_changed),
+            Reg_f32b(0x004a, '/Ac/Energy/ReverseSum', 1, _kwh, onchange=self.deviceEnergyReverse_changed),
         ]
 
         for n in range(1, phases + 1):
@@ -191,22 +209,25 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.data_regs = regs
         self.nr_phases = phases
         self.last_time = time.time()
+        self.energy_time = time.time() - 4
+        self.balancing_time = time.time()
         self.last_power = 0
+
+    def device_init_late(self):
+        super().device_init_late()
+        self.dbus.add_path('/Ac/Energy/ForwardBalancing', self.forwardBalancing_item.get_value(), writeable=True, gettextcallback=_kwh2)
+        self.dbus.add_path('/Ac/Energy/ReverseBalancing', self.reverseBalancing_item.get_value(), writeable=True, gettextcallback=_kwh2)
+        self.dbus.add_path('/Ac/Energy/Forward', None, writeable=True, gettextcallback=_kwh2)
+        self.dbus.add_path('/Ac/Energy/Reverse', None, writeable=True, gettextcallback=_kwh2)
+        self.dbus.add_path('/EnergyCounter', self.energyCounter_item.get_value(),writeable=True, onchangecallback=self.energyCounter_changed)
+        self.last_time = time.time()
 
     def init_device_settings(self, dbus):
         super().init_device_settings(dbus)
-        
-        self.interval_item = self.settings.addSetting(
-                self.settings_path + '/RefreshRate', 1, 1, MAXREFRESHRATE,
-                callback=self.refresh_setting_changed)
-        
-        self.age_limit_fast = 1 / self.interval_item.get_value()
+        self.energyCounter_item = self.settings.addSetting(self.settings_path + '/EnergyCounter', 0, 0, 2)
+        self.forwardBalancing_item = self.settings.addSetting(self.settings_path + '/ForwardBalancing', 0.0, 0, 0)
+        self.reverseBalancing_item = self.settings.addSetting(self.settings_path + '/ReverseBalancing', 0.0, 0, 0)
 
-    def refresh_setting_changed(self, service, path, value):
-        if self.age_limit_fast != 1 / value['Value']:
-            self.sched_reinit()
-        return
-    
     def power_balance(self, reg):
         deltaT =  time.time() - self.last_time
         if (self.last_power > 0):
@@ -216,21 +237,36 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.last_time = time.time()
         self.last_power = float(copy(reg)) if reg.isvalid() else 0
 
-    def device_init_late(self):
-        super().device_init_late()
-        self.dbus.add_path('/Ac/Energy/ForwardBalancing', 0, writeable=True)
-        self.dbus.add_path('/Ac/Energy/ReverseBalancing', 0, writeable=True)
-        self.last_time = time.time()
-        self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
-                    writeable=True,
-                    onchangecallback=self.interval_changed)
+    def deviceEnergyForward_changed(self, reg):
+       self.deviceEnergyForward = float(copy(reg)) if reg.isvalid() else 0
 
-    def interval_changed(self, path, val):
-        if not 1 <= val <= MAXREFRESHRATE:
+    def deviceEnergyReverse_changed(self, reg):
+       self.deviceEnergyReverse = float(copy(reg)) if reg.isvalid() else 0
+
+    def update_energy(self):
+        if time.time() - self.energy_time >= 5:
+            if self.dbus['/EnergyCounter'] == 1:
+                self.dbus['/Ac/Energy/Forward'] = self.dbus['/Ac/Energy/ForwardBalancing']
+                self.dbus['/Ac/Energy/Reverse'] = self.dbus['/Ac/Energy/ReverseBalancing']
+            elif self.dbus['/EnergyCounter'] == 2:
+                if self.deviceEnergyForward is not None and  self.deviceEnergyReverse is not None:
+                    forward_result = round(self.deviceEnergyForward - self.deviceEnergyReverse, 5)
+                    self.dbus['/Ac/Energy/Forward'] = forward_result
+                    self.dbus['/Ac/Energy/Reverse'] = -forward_result
+            else:
+                self.dbus['/Ac/Energy/Forward'] = self.deviceEnergyForward
+                self.dbus['/Ac/Energy/Reverse'] = self.deviceEnergyReverse
+            self.energy_time = time.time()
+
+        if time.time() - self.balancing_time >= 300:
+            self.forwardBalancing_item.set_value(self.dbus['/Ac/Energy/ForwardBalancing'])
+            self.reverseBalancing_item.set_value(self.dbus['/Ac/Energy/ReverseBalancing'])
+            self.balancing_time = time.time()
+
+    def energyCounter_changed(self, path, val):
+        if not 0 <= val <= 2:
             return False
-        self.interval_item.set_value(val)
-        if self.age_limit_fast != 1/val:
-            self.sched_reinit()
+        self.energyCounter_item.set_value(val)
         return True
 
 

@@ -31,6 +31,9 @@ The following settings are available in the device settings menu inside Venus OS
 | Role | Valid values Grid meter, PV inverter, Generator or AC load: mode of operation for the energy meter. |
 | Position | Only for PV inverter. Valid values AC input 1, AC input 2 or AC output: Position where the device is connected. |
 | Phase | Only for single phase grid meters. Valid values L1, L2 or L3: represents the phase where the device is connected. |
+| Refresh Rate | Update rate of power measurement. |
+| Energy Counter Source | Method of calculating total imported and exported energy:<br>**Device Value:** Raw values from the energy meter. <br>**Balancing:** Balancing calculation of imported and exported energy.<br>**Import - Export:** Difference between imported and exported energy. |
+
 
 ## Used documentation
 - https://github.com/victronenergy/venus/wiki Victron Energies Venus OS
