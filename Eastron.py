@@ -48,6 +48,8 @@ class ModbusDeviceEastron():
         self.dbus.add_path('/RefreshRate', self.interval_item.get_value(),
             writeable=True,
             onchangecallback=self.interval_changed)
+        self.dbus.add_path('/RefreshTime', int(1000 / self.interval_item.get_value()),
+            writeable=False)
         
     def read_data_regs(self, regs, d):
         now = time.time()
