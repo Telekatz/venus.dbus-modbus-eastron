@@ -13,6 +13,12 @@ class Reg_f32b(Reg_num):
     coding = ('>f', '>2H')
     count = 2
     rtype = float
+    offset = None
+
+    def set_raw_value(self, val):
+        if self.offset is not None:
+            val += self.offset
+        return self.update(type(self.scale)(val / self.scale))
 
 nr_phases = [ 0, 1, 3, 3 ]
 
@@ -33,6 +39,7 @@ _hz = lambda v: (str(round(v, 1)) + 'Hz')
 MAXREFRESHRATE = 10
 
 class ModbusDeviceEastron():
+    vendor_name = 'Eastron'
 
     def init_device_settings(self, dbus):
         super().init_device_settings(dbus)
@@ -221,7 +228,11 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.dbus.add_path('/Ac/Energy/ReverseBalancing', self.reverseBalancing_item.get_value(), writeable=True, gettextcallback=_kwh2)
         self.dbus.add_path('/Ac/Energy/Forward', None, writeable=True, gettextcallback=_kwh2)
         self.dbus.add_path('/Ac/Energy/Reverse', None, writeable=True, gettextcallback=_kwh2)
-        self.dbus.add_path('/EnergyCounter', self.energyCounter_item.get_value(),writeable=True, onchangecallback=self.energyCounter_changed)
+        self.dbus.add_path('/Ac/L1/PowerOffset', 0, writeable=True, onchangecallback=self.offset_changed)
+        self.dbus.add_path('/Ac/L2/PowerOffset', 0, writeable=True, onchangecallback=self.offset_changed)
+        self.dbus.add_path('/Ac/L3/PowerOffset', 0, writeable=True, onchangecallback=self.offset_changed)
+        self.dbus.add_path('/DebugTXT', '', writeable=True)
+        self.dbus.add_path('/EnergyCounter', self.energyCounter_item.get_value(), writeable=True, onchangecallback=self.energyCounter_changed)
         self.last_time = time.time()
 
     def init_device_settings(self, dbus):
@@ -233,9 +244,9 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
     def power_balance(self, reg):
         deltaT =  time.time() - self.last_time
         if (self.last_power > 0):
-            self.dbus['/Ac/Energy/ForwardBalancing'] = float(self.dbus['/Ac/Energy/ForwardBalancing']) + (self.last_power * deltaT)/3600000
+            self.dbus['/Ac/Energy/ForwardBalancing'] = float(self.dbus['/Ac/Energy/ForwardBalancing']) + (self.last_power * deltaT) / 3600000
         else:
-            self.dbus['/Ac/Energy/ReverseBalancing'] = float(self.dbus['/Ac/Energy/ReverseBalancing']) + (abs(self.last_power) * deltaT)/3600000
+            self.dbus['/Ac/Energy/ReverseBalancing'] = float(self.dbus['/Ac/Energy/ReverseBalancing']) + (abs(self.last_power) * deltaT) / 3600000
         self.last_time = time.time()
         self.last_power = float(copy(reg)) if reg.isvalid() else 0
 
@@ -271,35 +282,48 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         self.energyCounter_item.set_value(val)
         return True
 
+    def offset_changed(self, path, val):
+        offset1 = val if path == '/Ac/L1/PowerOffset' else self.dbus['/Ac/L1/PowerOffset']
+        offset2 = val if path == '/Ac/L2/PowerOffset' else self.dbus['/Ac/L2/PowerOffset']
+        offset3 = val if path == '/Ac/L3/PowerOffset' else self.dbus['/Ac/L3/PowerOffset']
+        
+        for r in self.data_regs:
+            for s in r:
+                if path == s.name + 'Offset':
+                    s.offset = val
+                if s.name == '/Ac/Power':
+                    s.offset = offset1 + offset2 + offset3
+
+        return True
 
 class Eastron_SDM72DM(Eastron_3phase):
     productid = 0xb023 # id assigned by Victron Support
-    productname = 'Eastron SDM72D-M'
+    productname = 'SDM72D-M'
     min_timeout = 0.5
 
 class Eastron_SDM72DM2(Eastron_3phase):
     productid = 0xb023 # id assigned by Victron Support
-    productname = 'Eastron SDM72D-M-2'
+    productname = 'SDM72D-M-2'
     min_timeout = 0.5
 
 class Eastron_SDM120M(Eastron_1phase):
     productid = 0xb023 # id assigned by Victron Support
-    productname = 'Eastron SDM120-M'
+    productname = 'SDM120-M'
     min_timeout = 0.5
 
 class Eastron_SDM230M(Eastron_1phase):
     productid = 0xb023 # id assigned by Victron Support
-    productname = 'Eastron SDM230-Modbus'
+    productname = 'SDM230-Modbus'
     min_timeout = 0.5
 
 class Eastron_SDM630M(Eastron_3phase):
     productid = 0xb023 # id assigned by Victron Support
-    productname = 'Eastron SDM630-Modbus'
+    productname = 'SDM630-Modbus'
     min_timeout = 0.5
 
 class Eastron_SDM630MCT(Eastron_3phase):
     productid = 0xb023 # id assigned by Victron Support
-    productname = 'Eastron SDM630-MCT'
+    productname = 'SDM630-MCT'
     min_timeout = 0.5
 
 
