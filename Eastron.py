@@ -118,6 +118,7 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             Reg_f32b(0x0000, '/Ac/L%d/Voltage' % n,        1, _v),
             Reg_f32b(0x0006, '/Ac/L%d/Current' % n,        1, _a),
             Reg_f32b(0x000c, '/Ac/L%d/Power' % n,          1, _w),
+            Reg_f32b(0x001e, '/Ac/L%d/PowerFactor' % n,    1, None),
             Reg_f32b(0x0048, '/Ac/L%d/Energy/Forward' % n, 1, _kwh),
             Reg_f32b(0x004a, '/Ac/L%d/Energy/Reverse' % n, 1, _kwh),
         ]
@@ -142,13 +143,14 @@ class Eastron_1phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
         regs += self.phase_regs(self.phase+1)
 
         self.data_regs = regs
-        self.nr_phases = self.phase+1
    
     def device_init_late(self):
         super().device_init_late()
         self.dbus.add_path('/Phase', self.phase_item.get_value(),
             writeable=True,
             onchangecallback=self.phase_changed)
+        self.dbus.add_path('/Ac/Phase', self.phase_item.get_value() + 1,
+            writeable=False)
         if self.phase != self.phase_item.get_value():
             self.phase = self.phase_item.get_value()
             self.reinit()
@@ -188,6 +190,7 @@ class Eastron_3phase(ModbusDeviceEastron,  device.CustomName, device.EnergyMeter
             Reg_f32b(0x0000 + s, '/Ac/L%d/Voltage' % n,        1, _v),
             Reg_f32b(0x0006 + s, '/Ac/L%d/Current' % n,        1, _a),
             Reg_f32b(0x000c + s, '/Ac/L%d/Power' % n,          1, _w),
+            Reg_f32b(0x001e + s, '/Ac/L%d/PowerFactor' % n,    1, None),
             Reg_f32b(0x015a + s, '/Ac/L%d/Energy/Forward' % n, 1, _kwh),
             Reg_f32b(0x0160 + s, '/Ac/L%d/Energy/Reverse' % n, 1, _kwh),
         ]

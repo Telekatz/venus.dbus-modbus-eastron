@@ -7,6 +7,9 @@ GUI_DIR=/opt/victronenergy/gui/qml
 chmod a+x $SCRIPT_DIR/restart.sh
 chmod 744 $SCRIPT_DIR/restart.sh
 
+chmod a+x $SCRIPT_DIR/installGuiV2.sh
+chmod 744 $SCRIPT_DIR/installGuiV2.sh
+
 chmod a+x $SCRIPT_DIR/uninstall.sh
 chmod 744 $SCRIPT_DIR/uninstall.sh
 

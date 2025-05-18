@@ -23,6 +23,17 @@ Before installing a new version, uninstall the installed version:
 ```
 /data/dbus-modbus-eastron/uninstall.sh
 ```
+
+### Update GUI-V2
+GUI-V2 Source: https://github.com/Telekatz/gui-v2
+
+The following script installs the latest version of GUI-V2:
+```
+/data/dbus-modbus-eastron/installGuiV2.sh
+```
+After installing a new version of GUI-V2, you should restart Venus OS to update the GUI in the VRM portal.
+A backup of the original GUI-V2 is available at https://venus/gui-v2-backup/.
+
 ### Settings
 The following settings are available in the device settings menu inside Venus OS:
 
