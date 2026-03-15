@@ -355,6 +355,10 @@ models = {
         'model':    'SDM630MCT',
         'handler':  Eastron_SDM630MCT,
     },
+    136: {
+        'model':    'SDM630MCT-40ma',
+        'handler':  Eastron_SDM630MCT,
+    },
 }
 
 
